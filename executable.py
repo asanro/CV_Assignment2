@@ -94,10 +94,12 @@ def main():
     hdr_program.setInt('sceneMap', 0)
     hdr_program.setInt('bloomMap', 1)
 
+    window_width_px, window_height_px = glfw.get_framebuffer_size(window)
+
     hdrbuffer = HDRBuffer()
-    hdrbuffer.create(window_width, window_height)
+    hdrbuffer.create(window_width_px, window_height_px)
     blurbuffer = BlurBuffer()
-    blurbuffer.create(window_width, window_height)
+    blurbuffer.create(window_width_px, window_height_px)
 
     bloom = Bloom(hdrbuffer, hdr_program, blurbuffer, blur_program)
 
@@ -117,12 +119,12 @@ def main():
     depth = load_texture_2d('resources/textures/depth.jpg')
     depth_grid = load_texture_2d('resources/textures/depth_grid.jpg')
 
-    grid_positions = generate_grid(config['world_width'], config['world_width'])
-    square.set_multiple_positions(grid_positions)
+    grid_positions, grid_colors = generate_grid(config['world_width'], config['world_width'])
+    square.set_multiple_positions(grid_positions, grid_colors)
 
-    cam_positions = get_cam_positions()
+    cam_positions, cam_colors = get_cam_positions()
     for c, cam_pos in enumerate(cam_positions):
-        cam_shapes[c].set_multiple_positions([cam_pos])
+        cam_shapes[c].set_multiple_positions([cam_pos], [cam_colors[c]])
 
     last_time = glfw.get_time()
     while not glfw.window_should_close(window):
@@ -144,7 +146,9 @@ def main():
             cam.draw_multiple(depth_program)
 
         hdrbuffer.bind()
-        glViewport(0, 0, window_width, window_height)
+
+        window_width_px, window_height_px = glfw.get_framebuffer_size(window)
+        glViewport(0, 0, window_width_px, window_height_px)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         draw_objs(square, program, perspective, light_pos, texture_grid, normal_grid, specular_grid, depth_grid)
@@ -168,10 +172,11 @@ def resize_callback(window, w, h):
         global window_width, window_height, hdrbuffer, blurbuffer
         window_width, window_height = w, h
         glm.perspective(45, window_width / window_height, config['near_plane'], config['far_plane'])
+        window_width_px, window_height_px = glfw.get_framebuffer_size(window)
         hdrbuffer.delete()
-        hdrbuffer.create(window_width, window_height)
+        hdrbuffer.create(window_width_px, window_height_px)
         blurbuffer.delete()
-        blurbuffer.create(window_width, window_height)
+        blurbuffer.create(window_width_px, window_height_px)
 
 
 def key_callback(window, key, scancode, action, mods):
@@ -179,8 +184,8 @@ def key_callback(window, key, scancode, action, mods):
         glfw.set_window_should_close(window, glfw.TRUE)
     if key == glfw.KEY_G and action == glfw.PRESS:
         global cube
-        positions = set_voxel_positions(config['world_width'], config['world_height'], config['world_width'])
-        cube.set_multiple_positions(positions)
+        positions, colors = set_voxel_positions(config['world_width'], config['world_height'], config['world_width'])
+        cube.set_multiple_positions(positions, colors)
 
 
 def mouse_move(win, pos_x, pos_y):

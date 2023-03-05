@@ -8,15 +8,17 @@ block_size = 1.0
 def generate_grid(width, depth):
     # Generates the floor grid locations
     # You don't need to edit this function
-
-    data = []
+    data, colors = [], []
     for x in range(width):
         for z in range(depth):
             data.append([x * block_size - width / 2, -block_size, z * block_size - depth / 2])
-    return data
+            colors.append([1.0, 1.0, 1.0] if (x + z) % 2 == 0 else [0, 0, 0])
+
+    return data, colors
 
 
 def get_parameters(path):
+    # Gets extrinsic and intrinsic parameters from xml file
     filename = path + '/config.xml'
     fs = cv.FileStorage(filename, cv.FILE_STORAGE_READ)
 
@@ -33,8 +35,8 @@ def set_voxel_positions(width, height, depth):
     # Generates random voxel locations
     # TODO: You need to calculate proper voxel arrays instead of random ones.
     # create an array of the real world points in mm starting from the top left
-    mask, data, rvecs, tvecs, mtx, dist = [], [], [], [], [], []
-
+    vid, mask, rvecs, tvecs, mtx, dist = [], [], [], [], [], []
+    data, colors = [], []
     for c in range(0, 4):
         cam = c + 1
 
@@ -48,16 +50,19 @@ def set_voxel_positions(width, height, depth):
         m = cv.imread(path2)
         m = cv.cvtColor(m, cv.COLOR_BGR2GRAY)
         mask.append(m)
+        path3 = path + '/video.png'
+        color_frame = cv.imread(path3.format(2))
+        vid.append(color_frame)
 
     width = int(60)
     height = int(60)
     depth = int(60)
-    resolution=1
-    resolution2=2*resolution
+
     for x in range(width):
         for y in range(height):
             for z in range(depth):
                 voxel = True
+                color = []
                 for c in range(0, 4):
 
                     voxels = ((x - width / 2) * 40, (y - height / 2) * 40, -z * 40)
@@ -72,14 +77,20 @@ def set_voxel_positions(width, height, depth):
 
                     if 0 <= pixel_pts[0] < heightMask and 0 <= pixel_pts[1] < widthMask:
                         val = mask0[int(pixel_pts[0]), int(pixel_pts[1])]
+                        color.append(vid[c][int(pixel_pts[0])][int(pixel_pts[1])])
                         if val == 0:
                             voxel = False
 
                 if voxel:
                     data.append(
-                        [(x * block_size/resolution - width / resolution2),(z * block_size/resolution), (y * block_size/resolution - depth / resolution2)])
+                        [(x * block_size - width), (z * block_size),
+                         (y * block_size - depth)])
 
-    return data
+                    final_color = np.mean(np.array(color), axis=0) / 256
+
+                    colors.append(final_color)
+
+    return data, colors
 
 
 def get_cam_positions():
@@ -102,7 +113,8 @@ def get_cam_positions():
                        [cameraposition[2][0][0], -cameraposition[2][2][0], cameraposition[2][1][0]],
                        [cameraposition[3][0][0], -cameraposition[3][2][0], cameraposition[3][1][0]]]
 
-    return cameraposition2
+    colors = [[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0], [1.0, 1.0, 0]]
+    return cameraposition2, colors
 
 
 def get_cam_rotation_matrices():

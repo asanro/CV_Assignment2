@@ -120,11 +120,6 @@ def gaussian_background_subtraction(path, c):
         bk_model = bg_subtractor.apply(frame, learningRate=0)
         bk_model = cv.threshold(bk_model, 200, 255, cv.THRESH_BINARY)[1]
 
-        # Apply morphological operations to the binary mask
-        # kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5))
-        #mask = cv.morphologyEx(bk_model, cv.MORPH_CLOSE, kernel)
-        #mask = cv.morphologyEx(mask, cv.MORPH_OPEN, kernel)
-
         # Find the contours in the binary mask
         contours, hierarchy = cv.findContours(bk_model, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
         # Find the contour with the maximum area

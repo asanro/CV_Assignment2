@@ -267,7 +267,7 @@ def Camera_Calibration(path):
     cv.destroyAllWindows()
 
     # Save XML file
-    filename = path + '/configPr.xml'
+    filename = path + '/config.xml'
     fs = cv.FileStorage(filename, cv.FILE_STORAGE_WRITE)
     fs.write('rvecs', rvecs)
     fs.write('tvecs', tvecs)

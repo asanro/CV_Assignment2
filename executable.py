@@ -9,6 +9,7 @@ from engine.effect.bloom import Bloom
 from assignment import set_voxel_positions, generate_grid, get_cam_positions, get_cam_rotation_matrices
 from engine.camera import Camera
 from engine.config import config
+import cv2 as cv
 
 cube, hdrbuffer, blurbuffer, lastPosX, lastPosY = None, None, None, None, None
 firstTime = True
@@ -44,7 +45,9 @@ def draw_objs(obj, program, perspective, light_pos, texture, normal, specular, d
 
 
 def main():
-    global hdrbuffer, blurbuffer, cube, window_width, window_height
+    global hdrbuffer, blurbuffer, cube, window_width, window_height, pressed_yes
+
+    pressed_yes = False
 
     if not glfw.init():
         print('Failed to initialize GLFW.')
@@ -75,6 +78,40 @@ def main():
     glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
     glfw.set_framebuffer_size_callback(window, resize_callback)
     glfw.set_cursor_pos_callback(window, mouse_move)
+    glfw.set_key_callback(window, key_callback)
+
+    # Iterates through all  the cams
+    global cam_frames
+
+    cam_frames = []
+    for c in range(0, 4):
+        cam = c + 1
+        frames = []
+        # Load one of the videos
+        cap = cv.VideoCapture(f'foreground{cam}.avi')
+
+        # Check if the video is opened successfully
+        if not cap.isOpened():
+            print('Error opening video file.')
+            exit()
+        while True:
+            ret, frame = cap.read()
+
+            if not ret:
+                break
+            frames.append(frame)
+
+        cam_frames.append(frames)
+        cap.release()
+
+    # Get the total number of framesg
+    global num_frames
+
+    num_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
+
+    # Select the number of frames that you want to plot if you don´t want to plot all
+    num_frames = 15
+
     glfw.set_key_callback(window, key_callback)
 
     glEnable(GL_DEPTH_TEST)
@@ -109,60 +146,73 @@ def main():
     cam_rot_matrices = get_cam_rotation_matrices()
     cam_shapes = [Model('resources/models/camera.json', cam_rot_matrices[c]) for c in range(4)]
     square = Model('resources/models/square.json')
-    cube = Model('resources/models/cube.json')
-    texture = load_texture_2d('resources/textures/diffuse.jpg')
-    texture_grid = load_texture_2d('resources/textures/diffuse_grid.jpg')
-    normal = load_texture_2d('resources/textures/normal.jpg')
-    normal_grid = load_texture_2d('resources/textures/normal_grid.jpg')
-    specular = load_texture_2d('resources/textures/specular.jpg')
-    specular_grid = load_texture_2d('resources/textures/specular_grid.jpg')
-    depth = load_texture_2d('resources/textures/depth.jpg')
-    depth_grid = load_texture_2d('resources/textures/depth_grid.jpg')
 
-    grid_positions, grid_colors = generate_grid(config['world_width'], config['world_width'])
-    square.set_multiple_positions(grid_positions, grid_colors)
+    global glGenFramebuffers
 
-    cam_positions, cam_colors = get_cam_positions()
-    for c, cam_pos in enumerate(cam_positions):
-        cam_shapes[c].set_multiple_positions([cam_pos], [cam_colors[c]])
+    global nframe
 
-    last_time = glfw.get_time()
-    while not glfw.window_should_close(window):
-        if config['debug_mode']:
-            print(glGetError())
+    # Iterate through all the frames
+    for nframe in range(0, num_frames):
+        cube = Model('resources/models/cube.json')
+        texture = load_texture_2d('resources/textures/diffuse.jpg')
+        texture_grid = load_texture_2d('resources/textures/diffuse_grid.jpg')
+        normal = load_texture_2d('resources/textures/normal.jpg')
+        normal_grid = load_texture_2d('resources/textures/normal_grid.jpg')
+        specular = load_texture_2d('resources/textures/specular.jpg')
+        specular_grid = load_texture_2d('resources/textures/specular_grid.jpg')
+        depth = load_texture_2d('resources/textures/depth.jpg')
+        depth_grid = load_texture_2d('resources/textures/depth_grid.jpg')
 
-        current_time = glfw.get_time()
-        delta_time = current_time - last_time
-        last_time = current_time
+        grid_positions, grid_colors = generate_grid(config['world_width'], config['world_width'])
+        square.set_multiple_positions(grid_positions, grid_colors)
 
-        move_input(window, delta_time)
+        cam_positions, cam_colors = get_cam_positions()
+        for c, cam_pos in enumerate(cam_positions):
+            cam_shapes[c].set_multiple_positions([cam_pos], [cam_colors[c]])
 
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        glClearColor(0.1, 0.2, 0.8, 1)
+        last_time = glfw.get_time()
 
-        square.draw_multiple(depth_program)
-        cube.draw_multiple(depth_program)
-        for cam in cam_shapes:
-            cam.draw_multiple(depth_program)
+        while not glfw.window_should_close(window):
+            if config['debug_mode']:
+                print(glGetError())
 
-        hdrbuffer.bind()
+            current_time = glfw.get_time()
+            delta_time = current_time - last_time
+            last_time = current_time
 
-        window_width_px, window_height_px = glfw.get_framebuffer_size(window)
-        glViewport(0, 0, window_width_px, window_height_px)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+            move_input(window, delta_time)
 
-        draw_objs(square, program, perspective, light_pos, texture_grid, normal_grid, specular_grid, depth_grid)
-        draw_objs(cube, program, perspective, light_pos, texture, normal, specular, depth)
-        for cam in cam_shapes:
-            draw_objs(cam, program, perspective, light_pos, texture_grid, normal_grid, specular_grid, depth_grid)
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+            glClearColor(0.1, 0.2, 0.8, 1)
 
-        hdrbuffer.unbind()
-        hdrbuffer.finalize()
+            square.draw_multiple(depth_program)
+            cube.draw_multiple(depth_program)
+            for cam in cam_shapes:
+                cam.draw_multiple(depth_program)
 
-        bloom.draw_processed_scene()
+            if pressed_yes:
+                positions, colors = set_voxel_positions(cam_frames, nframe)
+                cube.set_multiple_positions(positions, colors)
 
-        glfw.poll_events()
-        glfw.swap_buffers(window)
+            hdrbuffer.bind()
+
+            window_width_px, window_height_px = glfw.get_framebuffer_size(window)
+            glViewport(0, 0, window_width_px, window_height_px)
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+            draw_objs(square, program, perspective, light_pos, texture_grid, normal_grid, specular_grid, depth_grid)
+            draw_objs(cube, program, perspective, light_pos, texture, normal, specular, depth)
+
+            for cam in cam_shapes:
+                draw_objs(cam, program, perspective, light_pos, texture_grid, normal_grid, specular_grid, depth_grid)
+
+            hdrbuffer.unbind()
+            hdrbuffer.finalize()
+
+            bloom.draw_processed_scene()
+
+            glfw.poll_events()
+            glfw.swap_buffers(window)
 
     glfw.terminate()
 
@@ -182,9 +232,15 @@ def resize_callback(window, w, h):
 def key_callback(window, key, scancode, action, mods):
     if key == glfw.KEY_ESCAPE and action == glfw.PRESS:
         glfw.set_window_should_close(window, glfw.TRUE)
+    global num_frames
+    global frames
+    global pressed
+    global pressed_yes
+
     if key == glfw.KEY_G and action == glfw.PRESS:
+        pressed_yes = True
         global cube
-        positions, colors = set_voxel_positions(config['world_width'], config['world_height'], config['world_width'])
+        positions, colors = set_voxel_positions(cam_frames, nframe)
         cube.set_multiple_positions(positions, colors)
 
 
@@ -213,3 +269,6 @@ def move_input(win, time):
 
 if __name__ == '__main__':
     main()
+
+
+
